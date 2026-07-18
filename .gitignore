@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/*.db
+data/*.db-*
+data/backups/*.db
+build/
+dist/
+*.spec
+data/backups/
+*_backup_*/
+server_deploy_backup_*/
+
+.env.backup_*

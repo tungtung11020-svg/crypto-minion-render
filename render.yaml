@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: crypto-minion-licensing
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python start.py
+    healthCheckPath: /v1/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SERVER_PEPPER
+        sync: false
+      - key: ED25519_PRIVATE_KEY
+        sync: false
+      - key: ED25519_PUBLIC_KEY
+        sync: false
+      - key: PAYMENT_MODE
+        value: test
+      - key: PAYMENT_PROVIDER_TOKEN
+        sync: false
+      - key: APP_DOWNLOAD_URL
+        sync: false
+      - key: SUPPORT_URL
+        sync: false
+      - key: API_PUBLIC_URL
+        sync: false
+      - key: OFFLINE_GRACE_HOURS
+        value: 72
+      - key: RATE_LIMIT_ATTEMPTS
+        value: 8
