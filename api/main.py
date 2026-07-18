@@ -11,6 +11,7 @@ async def create_database_schema():
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 
+@app.head('/v1/health')
 @app.get('/v1/health')
 async def health(): return {'status':'ok','service':'crypto-minion-licensing'}
 async def run_activate(body:LicenseRequest,request:Request,session:AsyncSession):
