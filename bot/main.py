@@ -4,6 +4,7 @@ from aiogram.filters import Command,CommandObject
 from aiogram.types import CallbackQuery,Message,PreCheckoutQuery
 from sqlalchemy import func,select
 from bot.admin_panel import admin_panel_router
+from bot.public_commands import public_commands_router
 from bot.admin_license_controls import admin_license_router
 from bot.admin_panel import admin_panel_router
 from bot.keyboards import (TERMS_URL,about_keyboard,back_home_keyboard,confirm_keyboard,download_keyboard,
@@ -249,6 +250,6 @@ async def run_bot():
             BotCommand(command='setprice',description='Изменить цену тарифа'),
             BotCommand(command='plantoggle',description='Включить или выключить тариф'),
         ],scope=BotCommandScopeChat(chat_id=admin_id))
-    dp=Dispatcher(); dp.include_router(admin_panel_router); dp.include_router(admin_license_router); dp.include_router(router); await dp.start_polling(bot)
+    dp=Dispatcher(); dp.include_router(public_commands_router); dp.include_router(admin_panel_router); dp.include_router(admin_license_router); dp.include_router(router); await dp.start_polling(bot)
 def main(): asyncio.run(run_bot())
 if __name__=='__main__': main()
