@@ -11,5 +11,8 @@ async def main():
         while True:
             await backup_database_async()
             await asyncio.sleep(24*60*60)
-    await asyncio.gather(server.serve(),run_bot(),maintenance())
+    tasks = [server.serve(), run_bot()]
+    if cfg.database_url.strip().lower().startswith('sqlite'):
+        tasks.append(maintenance())
+    await asyncio.gather(*tasks)
 if __name__=='__main__': asyncio.run(main())
