@@ -174,9 +174,37 @@ async def stats_callback(callback):
 async def license_search_callback(callback, state: FSMContext):
     if not is_admin(callback.from_user.id):
         return await callback.answer("Нет доступа", show_alert=True)
+    await state.clear()
+    async with SessionLocal() as session:
+        rows = (await session.execute(
+            select(License).order_by(License.created_at.desc()).limit(20)
+        )).scalars().all()
+    keyboard_rows = []
+    for item in rows:
+        keyboard_rows.append([InlineKeyboardButton(
+            text=f"🔑 …{item.key_last4} · {item.status} · ID {item.purchaser_telegram_id}",
+            callback_data=f"alc:info:{item.id}",
+        )])
+    keyboard_rows.append([InlineKeyboardButton(text="🔎 Поиск по UUID или последним 4", callback_data="ap:license_query")])
+    keyboard_rows.append([InlineKeyboardButton(text="← В админ-панель", callback_data="ap:home")])
+    text = (
+        "<b>🔑 ЛИЦЕНЗИИ</b>\n\n"
+        "Последние лицензии показаны кнопками ниже. "
+        "Нажмите лицензию — откроется карточка с полным UUID и последними четырьмя символами ключа."
+    )
+    if not rows:
+        text += "\n\nЛицензий пока нет."
+    await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_rows))
+    await callback.answer()
+
+
+@admin_panel_router.callback_query(F.data == "ap:license_query")
+async def license_query_callback(callback, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return await callback.answer("Нет доступа", show_alert=True)
     await state.set_state(AdminPanelStates.waiting_license_query)
     await callback.message.edit_text(
-        "<b>🔑 ПОИСК ЛИЦЕНЗИИ</b>\n\nОтправьте UUID лицензии или последние 4 символа ключа.",
+        "<b>🔎 ПОИСК ЛИЦЕНЗИИ</b>\n\nОтправьте UUID лицензии или последние 4 символа ключа.",
         reply_markup=cancel_keyboard(),
     )
     await callback.answer()
@@ -320,10 +348,25 @@ async def orders_callback(callback):
     if not is_admin(callback.from_user.id):
         return await callback.answer("Нет доступа", show_alert=True)
     async with SessionLocal() as session:
-        rows = (await session.execute(select(Order).order_by(Order.created_at.desc()).limit(15))).scalars().all()
+        rows = (await session.execute(
+            select(Order, License)
+            .outerjoin(License, License.order_id == Order.id)
+            .order_by(Order.created_at.desc())
+            .limit(10)
+        )).all()
     lines = ["<b>🧾 ПОСЛЕДНИЕ ЗАКАЗЫ</b>"]
-    for row in rows:
-        lines.append(f"<code>{row.id[:8]}</code> · {row.amount} {escape(row.currency)} · <b>{escape(row.status)}</b>")
+    for order, license_row in rows:
+        lines.append(
+            f"\nЗаказ: <code>{order.id}</code>\n"
+            f"Сумма: <b>{order.amount} {escape(order.currency)}</b> · {escape(order.status)}"
+        )
+        if license_row:
+            lines.append(
+                f"Лицензия: <code>{license_row.id}</code>\n"
+                f"Ключ: <code>{mask_key(license_row.key_last4)}</code>"
+            )
+        else:
+            lines.append("Лицензия: ещё не создана")
     if not rows:
         lines.append("\nЗаказов пока нет.")
     await callback.message.edit_text("\n".join(lines), reply_markup=back_keyboard())
@@ -335,10 +378,25 @@ async def payments_callback(callback):
     if not is_admin(callback.from_user.id):
         return await callback.answer("Нет доступа", show_alert=True)
     async with SessionLocal() as session:
-        rows = (await session.execute(select(Payment).order_by(Payment.created_at.desc()).limit(15))).scalars().all()
+        rows = (await session.execute(
+            select(Payment, Order, License)
+            .join(Order, Payment.order_id == Order.id)
+            .outerjoin(License, License.order_id == Order.id)
+            .order_by(Payment.created_at.desc())
+            .limit(10)
+        )).all()
     lines = ["<b>💳 ПОСЛЕДНИЕ ПЛАТЕЖИ</b>"]
-    for row in rows:
-        lines.append(f"<code>{row.id[:8]}</code> · {row.amount} {escape(row.currency)} · <b>{escape(row.status)}</b>")
+    for payment, order, license_row in rows:
+        lines.append(
+            f"\nПлатёж: <code>{payment.id}</code>\n"
+            f"Заказ: <code>{order.id}</code>\n"
+            f"Сумма: <b>{payment.amount} {escape(payment.currency)}</b> · {escape(payment.status)}"
+        )
+        if license_row:
+            lines.append(
+                f"Лицензия: <code>{license_row.id}</code>\n"
+                f"Ключ: <code>{mask_key(license_row.key_last4)}</code>"
+            )
     if not rows:
         lines.append("\nПлатежей пока нет.")
     await callback.message.edit_text("\n".join(lines), reply_markup=back_keyboard())
@@ -351,13 +409,26 @@ async def activation_log_callback(callback):
         return await callback.answer("Нет доступа", show_alert=True)
     async with SessionLocal() as session:
         rows = (await session.execute(
-            select(ActivationAudit).order_by(ActivationAudit.created_at.desc()).limit(15)
+            select(ActivationAudit).order_by(ActivationAudit.created_at.desc()).limit(10)
         )).scalars().all()
+        license_ids = {row.license_id for row in rows if row.license_id}
+        licenses = {}
+        if license_ids:
+            license_rows = (await session.execute(
+                select(License).where(License.id.in_(license_ids))
+            )).scalars().all()
+            licenses = {item.id: item for item in license_rows}
     lines = ["<b>📋 ЖУРНАЛ АКТИВАЦИЙ</b>"]
     for row in rows:
         mark = "✅" if row.success else "❌"
-        target = (row.license_id or "—")[:8]
-        lines.append(f"{mark} <code>{target}</code> · {escape(row.action)} · {escape(row.reason[:80])}")
+        lines.append(f"\n{mark} {escape(row.action)} · {escape((row.reason or '')[:100])}")
+        if row.license_id:
+            lines.append(f"UUID: <code>{row.license_id}</code>")
+            license_row = licenses.get(row.license_id)
+            if license_row:
+                lines.append(f"Ключ: <code>{mask_key(license_row.key_last4)}</code>")
+        else:
+            lines.append("Лицензия: не определена")
     if not rows:
         lines.append("\nЗаписей пока нет.")
     await callback.message.edit_text("\n".join(lines), reply_markup=back_keyboard())

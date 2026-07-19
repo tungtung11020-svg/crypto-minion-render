@@ -100,7 +100,9 @@ async def card(license_id: str):
     reason_line = f"\nПричина: <b>{reason}</b>" if reason else ""
     text = (
         f"<b>🔑 КАРТОЧКА ЛИЦЕНЗИИ</b>\n\n"
+        f"UUID лицензии: <code>{license_row.id}</code>\n"
         f"Ключ: <code>{mask_key(license_row.key_last4)}</code>\n"
+        f"Последние 4 символа: <code>{license_row.key_last4}</code>\n"
         f"Тариф: <b>{escape(plan.name)}</b>\n"
         f"Статус: <b>{escape(license_row.status)}</b>{reason_line}\n"
         f"Пользователь: <code>{license_row.purchaser_telegram_id}</code>\n"
